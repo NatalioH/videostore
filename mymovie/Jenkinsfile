@@ -1,42 +1,42 @@
 pipeline {
-    agent any
+  agent any
 
-    triggers {
-        // Poll GitHub every 2 minutes
-        pollSCM('H/2 * * * *')
+  triggers {
+    // poll every 2 minutes (optional)
+    pollSCM('H/2 * * * *')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: 'main', url: 'https://github.com/NatalioH/videostore.git'
+      }
     }
 
-    stages {
+    stage('Build in Minikube Docker') {
+      steps {
+        bat '''
+        REM === Switch Docker to Minikube's Docker (use absolute path) ===
+        call "C:\\Program Files\\minikube\\minikube.exe" docker-env --shell=cmd > docker_env.bat
+        call docker_env.bat
 
-        stage('Checkout') {
-            steps {
-                git branch: 'main', url: 'https://github.com/NatalioH/videostore.git'
-            }
-        }
-
-        stage('Build in Minikube Docker') {
-            steps {
-                bat '''
-                REM === Switch Docker to Minikube Docker ===
-                call minikube docker-env --shell=cmd > docker_env.bat
-                call docker_env.bat
-
-                REM === Build Django image inside Minikube Docker ===
-                docker build -t mydjangoapp:latest .
-                '''
-            }
-        }
-
-        stage('Deploy to Minikube') {
-            steps {
-                bat '''
-                REM === Apply the updated deployment manifest ===
-                kubectl apply -f deployment.yaml
-
-                REM === Ensure the rollout completes ===
-                kubectl rollout status deployment/django-deployment
-                '''
-            }
-        }
+        REM === Build Django image from the mymovie subfolder ===
+        docker build -t mydjangoapp:latest mymovie
+        '''
+      }
     }
+
+    stage('Deploy to Minikube') {
+      steps {
+        bat '''
+        REM === Apply manifests from mymovie/ ===
+        "C:\\Program Files\\kubectl\\kubectl.exe" apply -f mymovie\\deployment.yaml
+        "C:\\Program Files\\kubectl\\kubectl.exe" apply -f mymovie\\service.yaml
+
+        REM === Wait for rollout ===
+        "C:\\Program Files\\kubectl\\kubectl.exe" rollout status deployment/django-deployment
+        '''
+      }
+    }
+  }
 }

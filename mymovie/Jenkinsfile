@@ -1,11 +1,6 @@
 pipeline {
   agent any
 
-  triggers {
-    // poll every 2 minutes (optional)
-    pollSCM('H/2 * * * *')
-  }
-
   stages {
     stage('Checkout') {
       steps {
@@ -13,28 +8,35 @@ pipeline {
       }
     }
 
-    stage('Build in Minikube Docker') {
+    stage('Sanity: show files') {
       steps {
         bat '''
-        REM === Switch Docker to Minikube's Docker (use absolute path) ===
-        call "C:\\Program Files\\minikube\\minikube.exe" docker-env --shell=cmd > docker_env.bat
-        call docker_env.bat
-
-        REM === Build Django image from the mymovie subfolder ===
-        docker build -t mydjangoapp:latest mymovie
+        echo WORKSPACE: %cd%
+        dir
+        echo ----
+        dir mymovie
         '''
       }
     }
 
-    stage('Deploy to Minikube') {
+    stage('Build image in Minikube') {
       steps {
         bat '''
-        REM === Apply manifests from mymovie/ ===
-        "C:\\Program Files\\kubectl\\kubectl.exe" apply -f mymovie\\deployment.yaml
-        "C:\\Program Files\\kubectl\\kubectl.exe" apply -f mymovie\\service.yaml
+        REM Build directly with minikube (no docker-env needed)
+        "C:\\Program Files\\minikube\\minikube.exe" image build -t mydjangoapp:latest mymovie
+        '''
+      }
+    }
 
-        REM === Wait for rollout ===
-        "C:\\Program Files\\kubectl\\kubectl.exe" rollout status deployment/django-deployment
+    stage('Deploy to Kubernetes') {
+      steps {
+        bat '''
+        REM Use kubectl from PATH. If Jenkins can't find it, see Step 2 below.
+        kubectl apply -f mymovie\\deployment.yaml
+        kubectl apply -f mymovie\\service.yaml
+        kubectl rollout status deployment/django-deployment
+        kubectl get pods
+        kubectl get svc
         '''
       }
     }

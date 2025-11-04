@@ -26,6 +26,7 @@ stage('Deploy to Minikube') {
 steps {
 bat '''
 REM === Apply the updated deployment manifest ===
+cd mymovie
 kubectl apply -f deployment.yaml
 REM === Ensure the rollout completes ===
 kubectl rollout status deployment/django-deployment

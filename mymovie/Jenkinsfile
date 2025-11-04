@@ -1,64 +1,35 @@
 pipeline {
-  agent any
-
-  stages {
-    stage('Checkout') {
-      steps {
-        git branch: 'main', url: 'https://github.com/NatalioH/videostore.git'
-      }
-    }
-
-    stage('Sanity: show files') {
-      steps {
-        bat '''
-        echo WORKSPACE: %cd%
-        dir
-        echo ----
-        dir mymovie
-        '''
-      }
-    }
-
-    stage('Ensure Minikube up') {
-      steps {
-        bat '''
-        REM Check if a minikube cluster exists; if not, start one (Docker driver).
-        "C:\\Program Files\\minikube\\minikube.exe" status
-        IF ERRORLEVEL 1 (
-          echo Minikube not running; starting it now...
-          "C:\\Program Files\\minikube\\minikube.exe" start --driver=docker
-          IF ERRORLEVEL 1 (
-            echo ERROR: Failed to start minikube.
-            exit /b 1
-          )
-        )
-
-        REM Show profile and node
-        "C:\\Program Files\\minikube\\minikube.exe" profile list
-        kubectl get nodes
-        '''
-      }
-    }
-
-    stage('Build image in Minikube') {
-      steps {
-        bat '''
-        REM Build the image directly inside Minikube (so k8s can use it)
-        "C:\\Program Files\\minikube\\minikube.exe" image build -t mydjangoapp:latest mymovie
-        '''
-      }
-    }
-
-    stage('Deploy to Kubernetes') {
-      steps {
-        bat '''
-        kubectl apply -f mymovie\\deployment.yaml
-        kubectl apply -f mymovie\\service.yaml
-        kubectl rollout status deployment/django-deployment
-        kubectl get pods
-        kubectl get svc
-        '''
-      }
-    }
-  }
+agent any
+triggers {
+// Poll GitHub every 2 minutes
+pollSCM('H/2 * * * *')
+}
+stages {
+stage('Checkout') {
+steps {
+git branch: 'main', url: 'https://github.com/NatalioH/videostore'
+}
+}
+stage('Build in Minikube Docker') {
+steps {
+bat '''
+REM === Switch Docker to Minikube Docker ===
+call minikube docker-env --shell=cmd > docker_env.bat
+call docker_env.bat
+REM === Build Django image inside Minikube Docker ===
+docker build -t mydjangoapp:latest .
+'''
+}
+}
+stage('Deploy to Minikube') {
+steps {
+bat '''
+REM === Apply the updated deployment manifest ===
+kubectl apply -f deployment.yaml
+REM === Ensure the rollout completes ===
+kubectl rollout status deployment/django-deployment
+'''
+}
+}
+}
 }

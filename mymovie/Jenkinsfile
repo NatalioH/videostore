@@ -19,10 +19,19 @@ pipeline {
       }
     }
 
+    stage('Ensure Minikube up') {
+      steps {
+        bat '''
+        REM If status fails, start the cluster (adjust driver if you use Hyper-V)
+        "C:\\Program Files\\minikube\\minikube.exe" status || ^
+        "C:\\Program Files\\minikube\\minikube.exe" start --driver=docker
+        '''
+      }
+    }
+
     stage('Build image in Minikube') {
       steps {
         bat '''
-        REM Build directly with minikube (no docker-env needed)
         "C:\\Program Files\\minikube\\minikube.exe" image build -t mydjangoapp:latest mymovie
         '''
       }
@@ -31,7 +40,6 @@ pipeline {
     stage('Deploy to Kubernetes') {
       steps {
         bat '''
-        REM Use kubectl from PATH. If Jenkins can't find it, see Step 2 below.
         kubectl apply -f mymovie\\deployment.yaml
         kubectl apply -f mymovie\\service.yaml
         kubectl rollout status deployment/django-deployment

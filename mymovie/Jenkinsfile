@@ -22,9 +22,20 @@ pipeline {
     stage('Ensure Minikube up') {
       steps {
         bat '''
-        REM If status fails, start the cluster (adjust driver if you use Hyper-V)
-        "C:\\Program Files\\minikube\\minikube.exe" status || ^
-        "C:\\Program Files\\minikube\\minikube.exe" start --driver=docker
+        REM Check if a minikube cluster exists; if not, start one (Docker driver).
+        "C:\\Program Files\\minikube\\minikube.exe" status
+        IF ERRORLEVEL 1 (
+          echo Minikube not running; starting it now...
+          "C:\\Program Files\\minikube\\minikube.exe" start --driver=docker
+          IF ERRORLEVEL 1 (
+            echo ERROR: Failed to start minikube.
+            exit /b 1
+          )
+        )
+
+        REM Show profile and node
+        "C:\\Program Files\\minikube\\minikube.exe" profile list
+        kubectl get nodes
         '''
       }
     }
@@ -32,6 +43,7 @@ pipeline {
     stage('Build image in Minikube') {
       steps {
         bat '''
+        REM Build the image directly inside Minikube (so k8s can use it)
         "C:\\Program Files\\minikube\\minikube.exe" image build -t mydjangoapp:latest mymovie
         '''
       }
